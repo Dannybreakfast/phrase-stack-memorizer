@@ -280,7 +280,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     <div class="field narrow" style="margin-top:.6rem; max-width:280px">
       <label for="maxWords">Max words per phrase <span class="help" style="display:inline">(auto-split longer)</span></label>
       <div class="range-row">
-        <input id="maxWords" type="range" min="5" max="7" step="1" value="6"/>
+        <input id="maxWords" type="range" min="1" max="20" step="1" value="6"/>
         <span class="range-val" id="maxWordsLabel">6</span>
       </div>
     </div>
@@ -381,7 +381,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       if (typeof s.draftText !== "string") s.draftText = "";
       if (typeof s.draftName !== "string") s.draftName = "";
       var mw = Number(s.maxWords);
-      s.maxWords = mw >= 5 && mw <= 7 ? mw : 6;
+      s.maxWords = mw >= 1 && mw <= 20 ? mw : 6;
       return s;
     } catch (e) {
       return fresh();
@@ -405,8 +405,8 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
 
   function clampMax(n) {
     n = Math.round(Number(n) || 6);
-    if (n < 5) return 5;
-    if (n > 7) return 7;
+    if (n < 1) return 1;
+    if (n > 20) return 20;
     return n;
   }
 

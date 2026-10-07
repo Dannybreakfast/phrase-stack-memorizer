@@ -7,7 +7,7 @@ Offline single-file flashcard tool for memorizing text in stacked phrase chunks.
 ## How to use
 
 1. Paste phrases — prefer **one phrase per line**. Blank-line blocks, `;`, or `/` also split.
-2. Set **max words per phrase** (5–7, default **6**). Longer lines auto-split at commas, conjunctions, then mid-point.
+2. Set **max words per phrase** (1–20, default **6**). Longer lines auto-split at commas, conjunctions, then mid-point.
 3. Preview the detected phrases, then **Start study**.
 4. Study screen shows only the card + progress. Flip (tap/Space), then **Got it** or **Missed** (Missed re-queues the card). Exit returns to setup.
 5. Optionally name and **Save** passages in localStorage; load from the Saved list.
