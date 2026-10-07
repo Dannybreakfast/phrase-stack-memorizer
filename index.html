@@ -177,12 +177,38 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
   min-height: 40px;
   padding: .4rem .55rem;
   font-size: .9rem;
+  flex-shrink: 0;
 }
 .study-top .exit:hover { color: var(--text); }
+.study-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
 .study-progress-meta {
   color: var(--muted);
   font-size: .9rem;
   text-align: right;
+  flex-shrink: 0;
+}
+.study-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: center;
+  margin-bottom: .55rem;
+}
+.study-nav button {
+  flex: 1 1 100px;
+  min-height: 44px;
 }
 .flashcard {
   flex: 1;
@@ -241,6 +267,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
   min-height: 48px;
   font-size: 1rem;
 }
+.study-actions[hidden] { display: none !important; }
 .complete-panel {
   text-align: center;
   padding: 2rem 1rem;
@@ -304,12 +331,13 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     <p id="status" role="status" aria-live="polite"></p>
   </section>
 
-  <footer>Offline page. Library lives in localStorage on this device. Space flips the card while studying.</footer>
+  <footer>Offline page. Library lives in localStorage on this device. Space flips; ←/→ move between cards while studying.</footer>
 </div>
 
 <div id="studyView" hidden>
   <div class="study-top">
     <button type="button" class="exit" id="exitBtn" title="Back to setup">← Exit</button>
+    <h1 class="study-title" id="studyTitle">Untitled passage</h1>
     <div class="study-progress-meta" id="studyMeta">Card 1 of 1</div>
   </div>
   <div class="bar" id="studyBar"><div id="studyFill"></div></div>
@@ -319,7 +347,12 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       <p class="flash-kicker" id="flashKicker">Front</p>
       <p class="flash-front" id="flashFront"></p>
       <p class="flash-back" id="flashBack" hidden></p>
-      <p class="flash-hint" id="flashHint">Tap or press Space to flip</p>
+      <p class="flash-hint" id="flashHint">Tap, Flip, or Space to flip</p>
+    </div>
+    <div class="study-nav" id="studyNav">
+      <button type="button" id="prevBtn" title="Previous card (←)">Previous</button>
+      <button type="button" class="primary" id="flipBtn" title="Flip card (Space)">Flip</button>
+      <button type="button" id="nextBtn" title="Next card (→)">Next</button>
     </div>
     <div class="study-actions" id="gradeActions" hidden>
       <button type="button" class="miss" id="missBtn">Missed</button>
@@ -363,9 +396,13 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
   var cardPanel = document.getElementById("cardPanel");
   var completePanel = document.getElementById("completePanel");
   var studyMeta = document.getElementById("studyMeta");
+  var studyTitle = document.getElementById("studyTitle");
   var studyBar = document.getElementById("studyBar");
   var studyFill = document.getElementById("studyFill");
   var completeMsg = document.getElementById("completeMsg");
+  var prevBtn = document.getElementById("prevBtn");
+  var nextBtn = document.getElementById("nextBtn");
+  var flipBtn = document.getElementById("flipBtn");
 
   var state = load();
   var phrases = [];
@@ -670,6 +707,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       return;
     }
     var cards = buildCards(phrases);
+    var title = nameInput.value.trim() || "Untitled passage";
     session = {
       phrases: phrases.slice(),
       cards: cards,
@@ -677,8 +715,10 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       cursor: 0,
       flipped: false,
       done: 0,
-      misses: 0
+      misses: 0,
+      passageTitle: title
     };
+    studyTitle.textContent = title;
     setupView.hidden = true;
     studyView.hidden = false;
     cardPanel.hidden = false;
@@ -701,6 +741,18 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     return session.cards[session.queue[qi]];
   }
 
+  function updateNavButtons() {
+    if (!session || !session.queue.length) {
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      flipBtn.disabled = true;
+      return;
+    }
+    prevBtn.disabled = session.cursor <= 0;
+    nextBtn.disabled = session.cursor >= session.queue.length - 1;
+    flipBtn.disabled = false;
+  }
+
   function showCurrentCard() {
     var card = currentCard();
     if (!card) {
@@ -709,13 +761,16 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     }
     session.flipped = false;
     var total = session.cards.length;
-    var remaining = session.queue.length;
+    var qLen = session.queue.length;
+    var pos = session.cursor + 1;
+    var remaining = qLen;
     var progressed = total - remaining;
-    studyMeta.textContent = "Card " + (progressed + 1) + " of " + total +
-      (remaining < total ? " · " + remaining + " left" : "");
+    studyMeta.textContent = pos + " / " + qLen + " in queue" +
+      (remaining < total ? " · " + progressed + " done" : "");
     var pct = total ? Math.round((progressed / total) * 100) : 0;
     studyFill.style.width = pct + "%";
     studyBar.classList.remove("done");
+    if (session.passageTitle) studyTitle.textContent = session.passageTitle;
 
     flashKicker.textContent = "Front";
     flashFront.hidden = false;
@@ -723,22 +778,55 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     flashBack.hidden = true;
     flashBack.textContent = card.back;
     flashHint.hidden = false;
-    flashHint.textContent = "Tap or press Space to flip";
+    flashHint.textContent = "Tap, Flip, or Space to flip";
     gradeActions.hidden = true;
     cardPanel.hidden = false;
     completePanel.hidden = true;
+    updateNavButtons();
   }
 
-  function flipCard() {
-    if (!session || session.flipped) return;
+  function applyFlipState() {
     var card = currentCard();
     if (!card) return;
-    session.flipped = true;
-    flashKicker.textContent = "Back";
-    flashFront.hidden = true;
-    flashBack.hidden = false;
-    flashHint.hidden = true;
-    gradeActions.hidden = false;
+    if (session.flipped) {
+      flashKicker.textContent = "Back";
+      flashFront.hidden = true;
+      flashBack.hidden = false;
+      flashHint.hidden = true;
+      gradeActions.hidden = false;
+    } else {
+      flashKicker.textContent = "Front";
+      flashFront.hidden = false;
+      flashBack.hidden = true;
+      flashHint.hidden = false;
+      flashHint.textContent = "Tap, Flip, or Space to flip";
+      gradeActions.hidden = true;
+    }
+  }
+
+  /** Toggle front ⇄ back on the current card. */
+  function flipCard() {
+    if (!session || !completePanel.hidden) return;
+    var card = currentCard();
+    if (!card) return;
+    session.flipped = !session.flipped;
+    applyFlipState();
+  }
+
+  function goPrev() {
+    if (!session || !session.queue.length) return;
+    if (session.cursor <= 0) return;
+    session.cursor--;
+    showCurrentCard();
+    flashcard.focus();
+  }
+
+  function goNext() {
+    if (!session || !session.queue.length) return;
+    if (session.cursor >= session.queue.length - 1) return;
+    session.cursor++;
+    showCurrentCard();
+    flashcard.focus();
   }
 
   function grade(gotIt) {
@@ -749,10 +837,12 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       session.queue.splice(qi, 1);
       session.done++;
       // stay at same cursor index (next card shifts into place)
-      if (session.cursor >= session.queue.length) session.cursor = 0;
+      if (session.cursor >= session.queue.length) {
+        session.cursor = Math.max(0, session.queue.length - 1);
+      }
     } else {
       session.misses++;
-      // re-queue: move current to end
+      // re-queue: move current to end; next item slides into this index
       var id = session.queue.splice(qi, 1)[0];
       session.queue.push(id);
       if (session.cursor >= session.queue.length) session.cursor = 0;
@@ -773,6 +863,9 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     studyMeta.textContent = "Complete · " + total + " cards";
     cardPanel.hidden = true;
     completePanel.hidden = false;
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    flipBtn.disabled = true;
     completeMsg.textContent = misses
       ? "Finished all " + total + " cards (" + misses + " re-queue" + (misses === 1 ? "" : "s") + " along the way)."
       : "Finished all " + total + " cards with no misses.";
@@ -835,8 +928,15 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
   document.getElementById("missBtn").addEventListener("click", function () { grade(false); });
 
   flashcard.addEventListener("click", function () {
-    if (!session) return;
-    if (!session.flipped) flipCard();
+    if (!session || !completePanel.hidden) return;
+    flipCard();
+  });
+
+  prevBtn.addEventListener("click", goPrev);
+  nextBtn.addEventListener("click", goNext);
+  flipBtn.addEventListener("click", function () {
+    if (!session || !completePanel.hidden) return;
+    flipCard();
   });
 
   document.addEventListener("keydown", function (e) {
@@ -844,10 +944,15 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT")) return;
     if (e.code === "Space" || e.key === " ") {
       e.preventDefault();
-      if (session && !completePanel.hidden) return;
-      if (session && !session.flipped) flipCard();
+      if (session && completePanel.hidden) flipCard();
     } else if (e.key === "Escape") {
       exitStudy();
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (session && completePanel.hidden) goPrev();
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (session && completePanel.hidden) goNext();
     } else if (session && session.flipped && completePanel.hidden) {
       if (e.key === "1" || e.key === "m" || e.key === "M") { e.preventDefault(); grade(false); }
       if (e.key === "2" || e.key === "g" || e.key === "G") { e.preventDefault(); grade(true); }
