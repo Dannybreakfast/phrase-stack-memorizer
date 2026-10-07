@@ -285,7 +285,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
 <div id="setupView" class="wrap">
   <header>
     <h1>Phrase Stack Memorizer</h1>
-    <p class="sub">Paste phrases, auto-chunk long lines, then study a stacked flashcard set (alone → build). Saved in this browser only. Works offline.</p>
+    <p class="sub">Paste phrases or load the built-in T-45C EP pack, auto-chunk long lines, then study a stacked flashcard set (alone → build). Saved in this browser only. Works offline.</p>
   </header>
 
   <section class="cardbox" aria-label="Passage library">
@@ -316,6 +316,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       <button type="button" class="primary" id="saveBtn">Save</button>
       <button type="button" id="newBtn">New</button>
       <button type="button" id="sampleBtn">Try a sample</button>
+      <button type="button" id="loadEpsBtn" title="Import / refresh built-in T-45C Immediate Action Items">Load T-45C EPs</button>
       <button type="button" class="danger" id="deleteBtn">Delete</button>
     </div>
   </section>
@@ -331,7 +332,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     <p id="status" role="status" aria-live="polite"></p>
   </section>
 
-  <footer>Offline page. Library lives in localStorage on this device. Space flips; ←/→ move between cards while studying.</footer>
+  <footer>Offline page. Library lives in localStorage on this device. Built-in T-45C EPs merge by id (ep-builtin-) without wiping your other saves. Space flips; ←/→ move between cards while studying.</footer>
 </div>
 
 <div id="studyView" hidden>
@@ -370,6 +371,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
   </div>
 </div>
 
+<script src="eps-pack.js"></script>
 <script>
 (function () {
   var KEY = "phraseStackMemorizer.v1";
@@ -427,6 +429,110 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
 
   function fresh() {
     return { passages: [], activeId: null, draftName: "", draftText: "", maxWords: 6 };
+  }
+
+  function getEpPack() {
+    var pack = (typeof window !== "undefined" && window.EPS_PACK) ? window.EPS_PACK : null;
+    if (!Array.isArray(pack)) return [];
+    return pack.filter(function (p) {
+      return p && typeof p.id === "string" && p.id.indexOf("ep-builtin-") === 0 &&
+        typeof p.name === "string" && typeof p.text === "string";
+    });
+  }
+
+  /** Merge / refresh built-in EP passages. Never removes non-ep-builtin saves. */
+  function mergeEpPack(opts) {
+    opts = opts || {};
+    var pack = getEpPack();
+    if (!pack.length) return { added: 0, updated: 0, total: 0, missing: true };
+    var byId = {};
+    state.passages.forEach(function (p, i) { byId[p.id] = i; });
+    var added = 0, updated = 0;
+    var now = Date.now();
+    pack.forEach(function (src) {
+      var entry = {
+        id: src.id,
+        name: src.name,
+        text: src.text,
+        updated: now,
+        builtin: true
+      };
+      if (Object.prototype.hasOwnProperty.call(byId, src.id)) {
+        var i = byId[src.id];
+        state.passages[i].name = entry.name;
+        state.passages[i].text = entry.text;
+        state.passages[i].updated = now;
+        state.passages[i].builtin = true;
+        updated++;
+      } else {
+        state.passages.push(entry);
+        byId[src.id] = state.passages.length - 1;
+        added++;
+      }
+    });
+    // Sort: user passages first (non ep-builtin), then EPs by name
+    state.passages.sort(function (a, b) {
+      var ae = a.id.indexOf("ep-builtin-") === 0 ? 1 : 0;
+      var be = b.id.indexOf("ep-builtin-") === 0 ? 1 : 0;
+      if (ae !== be) return ae - be;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+    return { added: added, updated: updated, total: pack.length, missing: false };
+  }
+
+  function ensureEpPackMerged() {
+    var pack = getEpPack();
+    if (!pack.length) return;
+    var hasAny = state.passages.some(function (p) {
+      return p && typeof p.id === "string" && p.id.indexOf("ep-builtin-") === 0;
+    });
+    // First visit: auto-merge. Later visits: still merge any new ids without wiping edits to existing ep-builtin (button refreshes).
+    if (!hasAny) {
+      mergeEpPack();
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    } else {
+      // Soft merge: add only missing ep-builtin ids (do not overwrite user-edited builtin text until they click Load)
+      var existing = {};
+      state.passages.forEach(function (p) { existing[p.id] = true; });
+      var added = 0;
+      var now = Date.now();
+      pack.forEach(function (src) {
+        if (existing[src.id]) return;
+        state.passages.push({ id: src.id, name: src.name, text: src.text, updated: now, builtin: true });
+        added++;
+      });
+      if (added) {
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+      }
+    }
+  }
+
+  function loadT45Eps() {
+    var result = mergeEpPack({ refresh: true });
+    if (result.missing) {
+      setStatus("EP pack not available (eps-pack.js missing).", "bad");
+      return;
+    }
+    persist();
+    fillSelect();
+    // Select first EP if none active, or keep current if still present
+    var firstEp = state.passages.find(function (p) { return p.id.indexOf("ep-builtin-") === 0; });
+    if (firstEp && (!state.activeId || state.activeId.indexOf("ep-builtin-") === 0)) {
+      state.activeId = firstEp.id;
+      nameInput.value = firstEp.name || "";
+      editor.value = firstEp.text || "";
+      persist();
+      fillSelect();
+      refreshPreview();
+    } else {
+      refreshPreview();
+    }
+    var msg = "T-45C EPs loaded (" + result.total + ")";
+    if (result.added || result.updated) {
+      msg += " — " + result.added + " added, " + result.updated + " refreshed";
+    }
+    msg += ". Your other saves were kept.";
+    setStatus(msg, "good");
   }
 
   function persist() {
@@ -920,6 +1026,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     refreshPreview();
     setStatus("Sample loaded — Start study when ready.", "good");
   });
+  document.getElementById("loadEpsBtn").addEventListener("click", loadT45Eps);
   document.getElementById("startBtn").addEventListener("click", startStudy);
   document.getElementById("exitBtn").addEventListener("click", exitStudy);
   document.getElementById("doneExitBtn").addEventListener("click", exitStudy);
@@ -959,7 +1066,8 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     }
   });
 
-  // Init
+  // Init — merge built-in T-45C EPs without wiping other saves
+  ensureEpPackMerged();
   loadActive();
 })();
 </script>
