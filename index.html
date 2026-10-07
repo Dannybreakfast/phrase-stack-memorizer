@@ -270,8 +270,11 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
 .study-actions[hidden] { display: none !important; }
 
 .line-reveal {
-  margin-top: 1rem;
-  padding: 1rem 1rem .85rem;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 1rem 0 0;
+  padding: 1rem 1.2rem .85rem;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -445,19 +448,20 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       <button type="button" class="miss" id="missBtn">Missed</button>
       <button type="button" class="ok" id="gotBtn">Got it</button>
     </div>
-    <div class="line-reveal" id="lineReveal" hidden>
-      <div class="line-reveal-head">
-        <h2>Reveal one line at a time</h2>
-        <div class="line-reveal-meta" id="lineRevealMeta">Line 0 of 0</div>
-      </div>
-      <ul class="line-reveal-list" id="lineRevealList" aria-live="polite"></ul>
-      <div class="line-reveal-actions">
-        <button type="button" class="primary" id="revealNextBtn" title="Reveal next line (R)">Reveal next line</button>
-        <button type="button" id="revealAllBtn">Reveal all</button>
-        <button type="button" id="hideAllBtn">Hide all</button>
-      </div>
-    </div>
   </div>
+
+  <section class="line-reveal" id="lineReveal" hidden>
+    <div class="line-reveal-head">
+      <h2>Reveal one line at a time</h2>
+      <div class="line-reveal-meta" id="lineRevealMeta">Line 0 of 0</div>
+    </div>
+    <ul class="line-reveal-list" id="lineRevealList" aria-live="polite"></ul>
+    <div class="line-reveal-actions">
+      <button type="button" class="primary" id="revealNextBtn" title="Reveal next line (R)">Reveal next line</button>
+      <button type="button" id="revealAllBtn">Reveal all</button>
+      <button type="button" id="hideAllBtn">Hide all</button>
+    </div>
+  </section>
 
   <div id="completePanel" class="complete-panel" hidden>
     <h2>Set complete</h2>
@@ -1147,6 +1151,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     studyBar.classList.add("done");
     studyMeta.textContent = "Complete · " + total + " cards";
     cardPanel.hidden = true;
+    if (lineReveal) lineReveal.hidden = true;
     completePanel.hidden = false;
     prevBtn.disabled = true;
     nextBtn.disabled = true;
