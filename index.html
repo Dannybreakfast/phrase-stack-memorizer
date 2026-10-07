@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="theme-color" content="#0f1419"/>
+<title>Phrase Stack Memorizer</title>
+<style>
+:root {
+  --bg:#0f1419;
+  --panel:#1a2332;
+  --text:#e7eef7;
+  --muted:#9bb0c7;
+  --accent:#3d9cf0;
+  --ink:#04121c;
+  --ok:#3dcc8a;
+  --ok-bg:#123226;
+  --bad:#f07178;
+  --bad-bg:#3a1d22;
+  --warn:#e6b35a;
+  --border:#2e3d52;
+  --radius:12px;
+  --font: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  line-height: 1.45;
+  font-size: 16px;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding: 1.1rem 1rem 3rem; }
+header {
+  background: linear-gradient(135deg,#1a2a40,#152033);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.15rem 1.2rem 1rem;
+  margin-bottom: 1rem;
+}
+h1 { margin: 0 0 .35rem; font-size: 1.5rem; letter-spacing: -.02em; }
+.sub { color: var(--muted); margin: 0; }
+.cardbox {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .9rem 1rem 1rem;
+  margin-bottom: .9rem;
+}
+h2 { margin: 0 0 .7rem; font-size: 1rem; font-weight: 600; color: #c5daf0; }
+label { display: block; font-size: .78rem; color: var(--muted); margin: 0 0 .25rem; }
+input[type="text"], input[type="range"], select, textarea {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .65rem .75rem;
+  font: inherit;
+  font-size: 16px;
+}
+textarea { min-height: 8.5rem; resize: vertical; line-height: 1.5; }
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.grid { display: flex; flex-wrap: wrap; gap: .6rem; align-items: flex-end; }
+.field { flex: 1 1 200px; min-width: 0; }
+.field.narrow { flex: 1 1 140px; }
+.btns { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+button {
+  font: inherit;
+  font-size: 15px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #243246;
+  color: var(--text);
+  padding: .55rem .85rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+button.primary { background: var(--accent); color: var(--ink); border-color: transparent; font-weight: 600; }
+button.ghost { background: transparent; }
+button.danger { background: transparent; color: var(--bad); border-color: #6a3036; }
+button.ok { background: var(--ok-bg); color: #d8ffe9; border-color: #2a6a4a; }
+button.miss { background: var(--bad-bg); color: #ffc9cc; border-color: #6a3036; }
+button:disabled { opacity: .45; cursor: default; }
+.meta { color: var(--muted); font-size: .9rem; margin: .35rem 0; }
+.help { color: var(--muted); font-size: .88rem; margin: .2rem 0 .7rem; }
+.bar {
+  height: 8px;
+  background: #0c1116;
+  border-radius: 99px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin: .35rem 0 .55rem;
+}
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .15s linear; }
+.bar.done > div { background: var(--ok); }
+.phrase-list {
+  list-style: none;
+  margin: .4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.phrase-list li {
+  background: #0c1116;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .5rem .7rem;
+  display: flex;
+  gap: .55rem;
+  align-items: flex-start;
+}
+.phrase-list .num {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: .85rem;
+  min-width: 1.6rem;
+  flex-shrink: 0;
+}
+.phrase-list .txt { flex: 1; white-space: pre-wrap; }
+.phrase-list .wc {
+  color: var(--muted);
+  font-size: .75rem;
+  flex-shrink: 0;
+}
+.banner {
+  border: 1px solid var(--ok);
+  background: var(--ok-bg);
+  color: #d8ffe9;
+  border-radius: 10px;
+  padding: .65rem .8rem;
+  margin-top: .65rem;
+}
+#status { color: var(--muted); min-height: 1.3em; margin: .45rem 0 0; }
+#status.good { color: #b6f0d2; }
+#status.bad { color: #ffc1c4; }
+footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+.range-row input[type="range"] { flex: 1; padding: .35rem 0; }
+.range-val {
+  min-width: 2ch;
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 1.1rem;
+}
+
+/* Study screen — full dedicated view */
+#setupView[hidden], #studyView[hidden] { display: none !important; }
+#studyView {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: .75rem 1rem 1.5rem;
+}
+.study-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .5rem;
+}
+.study-top .exit {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  min-height: 40px;
+  padding: .4rem .55rem;
+  font-size: .9rem;
+}
+.study-top .exit:hover { color: var(--text); }
+.study-progress-meta {
+  color: var(--muted);
+  font-size: .9rem;
+  text-align: right;
+}
+.flashcard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.2rem;
+  margin: .5rem 0 1rem;
+  min-height: 220px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.flashcard:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.flash-kicker {
+  color: var(--muted);
+  font-size: .75rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin: 0 0 .5rem;
+}
+.flash-front {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  text-align: center;
+  margin: 0;
+}
+.flash-back {
+  font-size: 1.25rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  margin: 0;
+  text-align: left;
+}
+.flash-hint {
+  color: var(--muted);
+  font-size: .82rem;
+  text-align: center;
+  margin: .85rem 0 0;
+}
+.study-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: center;
+}
+.study-actions button {
+  flex: 1 1 140px;
+  min-height: 48px;
+  font-size: 1rem;
+}
+.complete-panel {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+.complete-panel h2 {
+  font-size: 1.4rem;
+  color: #d8ffe9;
+  margin: 0 0 .5rem;
+}
+.complete-panel p { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="setupView" class="wrap">
+  <header>
+    <h1>Phrase Stack Memorizer</h1>
+    <p class="sub">Paste phrases, auto-chunk long lines, then study a stacked flashcard set (alone → build). Saved in this browser only. Works offline.</p>
+  </header>
+
+  <section class="cardbox" aria-label="Passage library">
+    <h2>Passage</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="passageSelect">Saved</label>
+        <select id="passageSelect"></select>
+      </div>
+      <div class="field">
+        <label for="nameInput">Name</label>
+        <input id="nameInput" type="text" maxlength="80" placeholder="Memory verse / checklist" autocomplete="off"/>
+      </div>
+    </div>
+    <div class="field" style="margin-top:.6rem">
+      <label for="editor">Phrases</label>
+      <textarea id="editor" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="One phrase per line (preferred).&#10;Blank lines, semicolons, or slashes also split.&#10;&#10;Example:&#10;The Lord is my shepherd&#10;I shall not want&#10;He makes me lie down in green pastures"></textarea>
+    </div>
+    <div class="field narrow" style="margin-top:.6rem; max-width:280px">
+      <label for="maxWords">Max words per phrase <span class="help" style="display:inline">(auto-split longer)</span></label>
+      <div class="range-row">
+        <input id="maxWords" type="range" min="5" max="7" step="1" value="6"/>
+        <span class="range-val" id="maxWordsLabel">6</span>
+      </div>
+    </div>
+    <p class="meta" id="counts">Nothing pasted yet</p>
+    <div class="btns">
+      <button type="button" class="primary" id="saveBtn">Save</button>
+      <button type="button" id="newBtn">New</button>
+      <button type="button" id="sampleBtn">Try a sample</button>
+      <button type="button" class="danger" id="deleteBtn">Delete</button>
+    </div>
+  </section>
+
+  <section class="cardbox" aria-label="Phrase preview">
+    <h2>Detected phrases</h2>
+    <p class="help">These become the stack units. Long lines split at commas / conjunctions, then mid-point, keeping ≤ max words.</p>
+    <ul class="phrase-list" id="phrasePreview"></ul>
+    <p class="meta" id="cardMeta"></p>
+    <div class="btns" style="margin-top:.6rem">
+      <button type="button" class="primary" id="startBtn">Start study</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <footer>Offline page. Library lives in localStorage on this device. Space flips the card while studying.</footer>
+</div>
+
+<div id="studyView" hidden>
+  <div class="study-top">
+    <button type="button" class="exit" id="exitBtn" title="Back to setup">← Exit</button>
+    <div class="study-progress-meta" id="studyMeta">Card 1 of 1</div>
+  </div>
+  <div class="bar" id="studyBar"><div id="studyFill"></div></div>
+
+  <div id="cardPanel">
+    <div class="flashcard" id="flashcard" tabindex="0" role="button" aria-label="Flashcard — click or press Space to flip">
+      <p class="flash-kicker" id="flashKicker">Front</p>
+      <p class="flash-front" id="flashFront"></p>
+      <p class="flash-back" id="flashBack" hidden></p>
+      <p class="flash-hint" id="flashHint">Tap or press Space to flip</p>
+    </div>
+    <div class="study-actions" id="gradeActions" hidden>
+      <button type="button" class="miss" id="missBtn">Missed</button>
+      <button type="button" class="ok" id="gotBtn">Got it</button>
+    </div>
+  </div>
+
+  <div id="completePanel" class="complete-panel" hidden>
+    <h2>Set complete</h2>
+    <p id="completeMsg">You finished every card in the stack.</p>
+    <div class="btns" style="justify-content:center; margin-top:1rem">
+      <button type="button" class="primary" id="restartBtn">Study again</button>
+      <button type="button" id="doneExitBtn">Back to setup</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = "phraseStackMemorizer.v1";
+  var SAMPLE = "The Lord is my shepherd\nI shall not want\nHe makes me lie down in green pastures\nHe leads me beside still waters\nHe restores my soul";
+  var CONJ = /^(and|or|but|nor|yet|so|for|then|than|because|while|although|though|unless|until|when|where|if|as)$/i;
+
+  var setupView = document.getElementById("setupView");
+  var studyView = document.getElementById("studyView");
+  var passageSelect = document.getElementById("passageSelect");
+  var nameInput = document.getElementById("nameInput");
+  var editor = document.getElementById("editor");
+  var maxWords = document.getElementById("maxWords");
+  var maxWordsLabel = document.getElementById("maxWordsLabel");
+  var counts = document.getElementById("counts");
+  var phrasePreview = document.getElementById("phrasePreview");
+  var cardMeta = document.getElementById("cardMeta");
+  var statusEl = document.getElementById("status");
+  var flashcard = document.getElementById("flashcard");
+  var flashKicker = document.getElementById("flashKicker");
+  var flashFront = document.getElementById("flashFront");
+  var flashBack = document.getElementById("flashBack");
+  var flashHint = document.getElementById("flashHint");
+  var gradeActions = document.getElementById("gradeActions");
+  var cardPanel = document.getElementById("cardPanel");
+  var completePanel = document.getElementById("completePanel");
+  var studyMeta = document.getElementById("studyMeta");
+  var studyBar = document.getElementById("studyBar");
+  var studyFill = document.getElementById("studyFill");
+  var completeMsg = document.getElementById("completeMsg");
+
+  var state = load();
+  var phrases = [];
+  var session = null;
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return fresh();
+      var s = JSON.parse(raw);
+      if (!s || !Array.isArray(s.passages)) return fresh();
+      s.passages = s.passages.filter(function (p) { return p && p.id && typeof p.text === "string"; });
+      if (typeof s.draftText !== "string") s.draftText = "";
+      if (typeof s.draftName !== "string") s.draftName = "";
+      var mw = Number(s.maxWords);
+      s.maxWords = mw >= 5 && mw <= 7 ? mw : 6;
+      return s;
+    } catch (e) {
+      return fresh();
+    }
+  }
+
+  function fresh() {
+    return { passages: [], activeId: null, draftName: "", draftText: "", maxWords: 6 };
+  }
+
+  function persist() {
+    state.draftName = nameInput.value;
+    state.draftText = editor.value;
+    state.maxWords = clampMax(Number(maxWords.value) || 6);
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { setStatus("Could not save in this browser.", "bad"); }
+  }
+
+  function uid() {
+    return "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function clampMax(n) {
+    n = Math.round(Number(n) || 6);
+    if (n < 5) return 5;
+    if (n > 7) return 7;
+    return n;
+  }
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg || "";
+    statusEl.className = kind || "";
+  }
+
+  function wordCount(s) {
+    var t = String(s || "").trim();
+    if (!t) return 0;
+    return t.split(/\s+/).filter(Boolean).length;
+  }
+
+  function wordsOf(s) {
+    return String(s || "").trim().split(/\s+/).filter(Boolean);
+  }
+
+  /** Split raw input into raw phrase candidates (before word-limit chunking). */
+  function parseRawPhrases(raw) {
+    var text = String(raw == null ? "" : raw).replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+    if (!text) return [];
+    var parts;
+    if (/\n\s*\n/.test(text)) {
+      parts = text.split(/\n\s*\n+/);
+    } else if (text.indexOf("\n") !== -1) {
+      parts = text.split(/\n+/);
+    } else if (/[;/]/.test(text)) {
+      parts = text.split(/\s*[;/]\s*/);
+    } else {
+      parts = [text];
+    }
+    var out = [];
+    parts.forEach(function (p) {
+      p = p.replace(/[ \t]+/g, " ").trim();
+      if (p) out.push(p);
+    });
+    return out;
+  }
+
+  /** Split a phrase into ≤ maxW chunks at commas, conjunctions, then midpoint. */
+  function splitLongPhrase(phrase, maxW) {
+    var words = wordsOf(phrase);
+    if (words.length <= maxW) return [words.join(" ")];
+
+    var chunks = [];
+    var i = 0;
+    while (i < words.length) {
+      var remaining = words.length - i;
+      if (remaining <= maxW) {
+        chunks.push(words.slice(i).join(" "));
+        break;
+      }
+      var end = i + maxW;
+      var best = -1;
+      var minKeep = Math.max(1, Math.min(2, Math.floor(maxW / 2)));
+
+      // Prefer split after comma within window (keep a meaningful left chunk)
+      for (var j = end - 1; j >= i + minKeep - 1; j--) {
+        if (/[,;:]$/.test(words[j])) {
+          best = j + 1;
+          break;
+        }
+      }
+      // Prefer split before a conjunction (leave conj on the next chunk)
+      if (best < 0) {
+        for (var k = end - 1; k >= i + minKeep; k--) {
+          if (CONJ.test(words[k])) {
+            best = k;
+            break;
+          }
+        }
+      }
+      // Mid-point of remaining words, capped so left chunk ≤ maxW
+      if (best < 0) {
+        best = i + Math.min(maxW, Math.ceil(remaining / 2));
+      }
+      if (best - i > maxW) best = i + maxW;
+      if (best <= i) best = Math.min(i + maxW, words.length);
+
+      chunks.push(words.slice(i, best).join(" "));
+      i = best;
+    }
+    return chunks.filter(Boolean);
+  }
+
+  function buildPhrases(raw, maxW) {
+    maxW = clampMax(maxW);
+    var raws = parseRawPhrases(raw);
+    var out = [];
+    raws.forEach(function (r) {
+      splitLongPhrase(r, maxW).forEach(function (c) { out.push(c); });
+    });
+    return out;
+  }
+
+  /**
+   * Stacking cards for phrases A,B,C,... :
+   * 1 alone; then for k=2..n: (alone k) then (stack 1..k). Total = 2n-1.
+   */
+  function buildCards(ph) {
+    var n = ph.length;
+    if (!n) return [];
+    var total = 2 * n - 1;
+    var cards = [];
+    var idx = 0;
+
+    function rangeLabel(from, to) {
+      if (from === to) return String(from);
+      return from + "–" + to;
+    }
+    function pushCard(from, to) {
+      idx++;
+      var parts = ph.slice(from - 1, to);
+      cards.push({
+        from: from,
+        to: to,
+        front: rangeLabel(from, to) + " (" + idx + " of " + total + ")",
+        back: parts.join("\n"),
+        backInline: parts.join(" ")
+      });
+    }
+
+    pushCard(1, 1);
+    for (var k = 2; k <= n; k++) {
+      pushCard(k, k);
+      pushCard(1, k);
+    }
+    return cards;
+  }
+
+  function refreshPreview() {
+    var mw = clampMax(Number(maxWords.value) || 6);
+    maxWordsLabel.textContent = String(mw);
+    phrases = buildPhrases(editor.value, mw);
+    phrasePreview.innerHTML = "";
+    if (!phrases.length) {
+      counts.textContent = "Nothing pasted yet";
+      cardMeta.textContent = "";
+      return;
+    }
+    var totalWords = 0;
+    phrases.forEach(function (p, i) {
+      var wc = wordCount(p);
+      totalWords += wc;
+      var li = document.createElement("li");
+      var num = document.createElement("span");
+      num.className = "num";
+      num.textContent = String(i + 1);
+      var txt = document.createElement("span");
+      txt.className = "txt";
+      txt.textContent = p;
+      var w = document.createElement("span");
+      w.className = "wc";
+      w.textContent = wc + "w";
+      li.appendChild(num);
+      li.appendChild(txt);
+      li.appendChild(w);
+      phrasePreview.appendChild(li);
+    });
+    var n = phrases.length;
+    var cards = 2 * n - 1;
+    counts.textContent = n + " phrase" + (n === 1 ? "" : "s") + " · " + totalWords + " words";
+    cardMeta.textContent = "Study set: " + cards + " card" + (cards === 1 ? "" : "s") + " (2n−1 for n=" + n + ")";
+  }
+
+  function fillSelect() {
+    var sel = passageSelect;
+    var cur = state.activeId;
+    sel.innerHTML = "";
+    var opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = state.passages.length ? "— draft / unsaved —" : "— no saved passages —";
+    sel.appendChild(opt0);
+    state.passages.forEach(function (p) {
+      var o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = p.name || "Untitled";
+      sel.appendChild(o);
+    });
+    sel.value = cur && state.passages.some(function (p) { return p.id === cur; }) ? cur : "";
+  }
+
+  function loadActive() {
+    var id = state.activeId;
+    var p = state.passages.find(function (x) { return x.id === id; });
+    if (p) {
+      nameInput.value = p.name || "";
+      editor.value = p.text || "";
+    } else {
+      nameInput.value = state.draftName || "";
+      editor.value = state.draftText || "";
+    }
+    maxWords.value = String(clampMax(state.maxWords));
+    fillSelect();
+    refreshPreview();
+  }
+
+  function savePassage() {
+    var name = nameInput.value.trim() || "Untitled";
+    var text = editor.value;
+    if (!String(text).trim()) {
+      setStatus("Paste some phrases before saving.", "bad");
+      return;
+    }
+    var id = state.activeId;
+    var existing = state.passages.find(function (x) { return x.id === id; });
+    if (existing) {
+      existing.name = name;
+      existing.text = text;
+      existing.updated = Date.now();
+    } else {
+      id = uid();
+      state.passages.push({ id: id, name: name, text: text, updated: Date.now() });
+      state.activeId = id;
+    }
+    nameInput.value = name;
+    persist();
+    fillSelect();
+    setStatus("Saved “" + name + "”.", "good");
+  }
+
+  function newPassage() {
+    state.activeId = null;
+    state.draftName = "";
+    state.draftText = "";
+    nameInput.value = "";
+    editor.value = "";
+    persist();
+    fillSelect();
+    refreshPreview();
+    setStatus("New draft ready.");
+    editor.focus();
+  }
+
+  function deletePassage() {
+    var id = state.activeId;
+    if (!id) {
+      editor.value = "";
+      nameInput.value = "";
+      refreshPreview();
+      persist();
+      setStatus("Draft cleared.");
+      return;
+    }
+    state.passages = state.passages.filter(function (p) { return p.id !== id; });
+    state.activeId = null;
+    nameInput.value = "";
+    editor.value = "";
+    persist();
+    fillSelect();
+    refreshPreview();
+    setStatus("Deleted.", "good");
+  }
+
+  // --- Study session ---
+  function startStudy() {
+    refreshPreview();
+    if (!phrases.length) {
+      setStatus("Paste at least one phrase first.", "bad");
+      return;
+    }
+    var cards = buildCards(phrases);
+    session = {
+      phrases: phrases.slice(),
+      cards: cards,
+      queue: cards.map(function (_, i) { return i; }),
+      cursor: 0,
+      flipped: false,
+      done: 0,
+      misses: 0
+    };
+    setupView.hidden = true;
+    studyView.hidden = false;
+    cardPanel.hidden = false;
+    completePanel.hidden = true;
+    showCurrentCard();
+    flashcard.focus();
+  }
+
+  function exitStudy() {
+    session = null;
+    studyView.hidden = true;
+    setupView.hidden = false;
+    setStatus("");
+  }
+
+  function currentCard() {
+    if (!session || !session.queue.length) return null;
+    var qi = session.cursor;
+    if (qi < 0 || qi >= session.queue.length) return null;
+    return session.cards[session.queue[qi]];
+  }
+
+  function showCurrentCard() {
+    var card = currentCard();
+    if (!card) {
+      finishSet();
+      return;
+    }
+    session.flipped = false;
+    var total = session.cards.length;
+    var remaining = session.queue.length;
+    var progressed = total - remaining;
+    studyMeta.textContent = "Card " + (progressed + 1) + " of " + total +
+      (remaining < total ? " · " + remaining + " left" : "");
+    var pct = total ? Math.round((progressed / total) * 100) : 0;
+    studyFill.style.width = pct + "%";
+    studyBar.classList.remove("done");
+
+    flashKicker.textContent = "Front";
+    flashFront.hidden = false;
+    flashFront.textContent = card.front;
+    flashBack.hidden = true;
+    flashBack.textContent = card.back;
+    flashHint.hidden = false;
+    flashHint.textContent = "Tap or press Space to flip";
+    gradeActions.hidden = true;
+    cardPanel.hidden = false;
+    completePanel.hidden = true;
+  }
+
+  function flipCard() {
+    if (!session || session.flipped) return;
+    var card = currentCard();
+    if (!card) return;
+    session.flipped = true;
+    flashKicker.textContent = "Back";
+    flashFront.hidden = true;
+    flashBack.hidden = false;
+    flashHint.hidden = true;
+    gradeActions.hidden = false;
+  }
+
+  function grade(gotIt) {
+    if (!session || !session.flipped) return;
+    var qi = session.cursor;
+    if (qi < 0 || qi >= session.queue.length) return;
+    if (gotIt) {
+      session.queue.splice(qi, 1);
+      session.done++;
+      // stay at same cursor index (next card shifts into place)
+      if (session.cursor >= session.queue.length) session.cursor = 0;
+    } else {
+      session.misses++;
+      // re-queue: move current to end
+      var id = session.queue.splice(qi, 1)[0];
+      session.queue.push(id);
+      if (session.cursor >= session.queue.length) session.cursor = 0;
+    }
+    if (!session.queue.length) {
+      finishSet();
+    } else {
+      showCurrentCard();
+      flashcard.focus();
+    }
+  }
+
+  function finishSet() {
+    var total = session ? session.cards.length : 0;
+    var misses = session ? session.misses : 0;
+    studyFill.style.width = "100%";
+    studyBar.classList.add("done");
+    studyMeta.textContent = "Complete · " + total + " cards";
+    cardPanel.hidden = true;
+    completePanel.hidden = false;
+    completeMsg.textContent = misses
+      ? "Finished all " + total + " cards (" + misses + " re-queue" + (misses === 1 ? "" : "s") + " along the way)."
+      : "Finished all " + total + " cards with no misses.";
+  }
+
+  function restartStudy() {
+    if (!session || !session.phrases.length) {
+      exitStudy();
+      return;
+    }
+    phrases = session.phrases.slice();
+    startStudy();
+  }
+
+  // Events
+  editor.addEventListener("input", function () { persist(); refreshPreview(); setStatus(""); });
+  maxWords.addEventListener("input", function () {
+    maxWordsLabel.textContent = String(clampMax(Number(maxWords.value)));
+    persist();
+    refreshPreview();
+  });
+  nameInput.addEventListener("input", function () { persist(); });
+
+  passageSelect.addEventListener("change", function () {
+    var id = passageSelect.value || null;
+    if (id) {
+      state.activeId = id;
+      var p = state.passages.find(function (x) { return x.id === id; });
+      if (p) {
+        nameInput.value = p.name || "";
+        editor.value = p.text || "";
+      }
+    } else {
+      state.activeId = null;
+      nameInput.value = state.draftName || "";
+      editor.value = state.draftText || "";
+    }
+    persist();
+    refreshPreview();
+    setStatus("");
+  });
+
+  document.getElementById("saveBtn").addEventListener("click", savePassage);
+  document.getElementById("newBtn").addEventListener("click", newPassage);
+  document.getElementById("deleteBtn").addEventListener("click", deletePassage);
+  document.getElementById("sampleBtn").addEventListener("click", function () {
+    state.activeId = null;
+    nameInput.value = "Psalm 23 (sample)";
+    editor.value = SAMPLE;
+    persist();
+    fillSelect();
+    refreshPreview();
+    setStatus("Sample loaded — Start study when ready.", "good");
+  });
+  document.getElementById("startBtn").addEventListener("click", startStudy);
+  document.getElementById("exitBtn").addEventListener("click", exitStudy);
+  document.getElementById("doneExitBtn").addEventListener("click", exitStudy);
+  document.getElementById("restartBtn").addEventListener("click", restartStudy);
+  document.getElementById("gotBtn").addEventListener("click", function () { grade(true); });
+  document.getElementById("missBtn").addEventListener("click", function () { grade(false); });
+
+  flashcard.addEventListener("click", function () {
+    if (!session) return;
+    if (!session.flipped) flipCard();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (studyView.hidden) return;
+    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT")) return;
+    if (e.code === "Space" || e.key === " ") {
+      e.preventDefault();
+      if (session && !completePanel.hidden) return;
+      if (session && !session.flipped) flipCard();
+    } else if (e.key === "Escape") {
+      exitStudy();
+    } else if (session && session.flipped && completePanel.hidden) {
+      if (e.key === "1" || e.key === "m" || e.key === "M") { e.preventDefault(); grade(false); }
+      if (e.key === "2" || e.key === "g" || e.key === "G") { e.preventDefault(); grade(true); }
+    }
+  });
+
+  // Init
+  loadActive();
+})();
+</script>
+</body>
+</html>
