@@ -268,6 +268,92 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
   font-size: 1rem;
 }
 .study-actions[hidden] { display: none !important; }
+
+.line-reveal {
+  margin-top: 1rem;
+  padding: 1rem 1rem .85rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.line-reveal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .65rem;
+}
+.line-reveal-head h2 {
+  margin: 0;
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.line-reveal-meta {
+  color: var(--muted);
+  font-size: .82rem;
+  white-space: nowrap;
+}
+.line-reveal-list {
+  list-style: none;
+  margin: 0 0 .75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  min-height: 2.5rem;
+}
+.line-reveal-list li {
+  margin: 0;
+  padding: .55rem .7rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #121a24;
+  font-size: 1rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.line-reveal-list li.hidden-line {
+  color: transparent;
+  user-select: none;
+  min-height: 2.4rem;
+  background: repeating-linear-gradient(
+    -45deg,
+    #121a24,
+    #121a24 8px,
+    #15202c 8px,
+    #15202c 16px
+  );
+  border-style: dashed;
+  position: relative;
+}
+.line-reveal-list li.hidden-line::after {
+  content: "· · ·";
+  color: var(--muted);
+  opacity: .55;
+  letter-spacing: .2em;
+  display: block;
+  text-align: center;
+  font-size: .85rem;
+}
+.line-reveal-list li.revealed {
+  color: var(--text);
+}
+.line-reveal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  justify-content: center;
+}
+.line-reveal-actions button {
+  flex: 1 1 120px;
+  min-height: 44px;
+}
+.line-reveal[hidden] { display: none !important; }
+
 .complete-panel {
   text-align: center;
   padding: 2rem 1rem;
@@ -332,7 +418,7 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     <p id="status" role="status" aria-live="polite"></p>
   </section>
 
-  <footer>Offline page. Library lives in localStorage on this device. Built-in T-45C EPs merge by id (ep-builtin-) without wiping your other saves. Space flips; ←/→ move between cards while studying.</footer>
+  <footer>Offline page. Library lives in localStorage on this device. Built-in T-45C EPs merge by id (ep-builtin-) without wiping your other saves. Space flips; ←/→ move between cards; R reveals the next EP line while studying.</footer>
 </div>
 
 <div id="studyView" hidden>
@@ -358,6 +444,32 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     <div class="study-actions" id="gradeActions" hidden>
       <button type="button" class="miss" id="missBtn">Missed</button>
       <button type="button" class="ok" id="gotBtn">Got it</button>
+  
+    <div class="line-reveal" id="lineReveal" hidden>
+      <div class="line-reveal-head">
+        <h2>Reveal one line at a time</h2>
+        <div class="line-reveal-meta" id="lineRevealMeta">Line 0 of 0</div>
+      </div>
+      <ul class="line-reveal-list" id="lineRevealList" aria-live="polite"></ul>
+      <div class="line-reveal-actions">
+        <button type="button" class="primary" id="revealNextBtn" title="Reveal next line (R)">Reveal next line</button>
+        <button type="button" id="revealAllBtn">Reveal all</button>
+        <button type="button" id="hideAllBtn">Hide all</button>
+      </div>
+    </div>
+  </div>
+
+    <div class="line-reveal" id="lineReveal" hidden>
+      <div class="line-reveal-head">
+        <h2>Reveal one line at a time</h2>
+        <div class="line-reveal-meta" id="lineRevealMeta">Line 0 of 0</div>
+      </div>
+      <ul class="line-reveal-list" id="lineRevealList" aria-live="polite"></ul>
+      <div class="line-reveal-actions">
+        <button type="button" class="primary" id="revealNextBtn" title="Reveal next line (R)">Reveal next line</button>
+        <button type="button" id="revealAllBtn">Reveal all</button>
+        <button type="button" id="hideAllBtn">Hide all</button>
+      </div>
     </div>
   </div>
 
@@ -401,6 +513,12 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
   var studyTitle = document.getElementById("studyTitle");
   var studyBar = document.getElementById("studyBar");
   var studyFill = document.getElementById("studyFill");
+  var lineReveal = document.getElementById("lineReveal");
+  var lineRevealList = document.getElementById("lineRevealList");
+  var lineRevealMeta = document.getElementById("lineRevealMeta");
+  var revealNextBtn = document.getElementById("revealNextBtn");
+  var revealAllBtn = document.getElementById("revealAllBtn");
+  var hideAllBtn = document.getElementById("hideAllBtn");
   var completeMsg = document.getElementById("completeMsg");
   var prevBtn = document.getElementById("prevBtn");
   var nextBtn = document.getElementById("nextBtn");
@@ -805,6 +923,77 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     setStatus("Deleted.", "good");
   }
 
+
+  function splitRevealLines(raw) {
+    return String(raw || "")
+      .split(/\r?\n/)
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s.length > 0; });
+  }
+
+  function initLineReveal(sourceText) {
+    if (!session) return;
+    session.revealLines = splitRevealLines(sourceText);
+    session.revealedCount = 0;
+    renderLineReveal();
+  }
+
+  function renderLineReveal() {
+    if (!session || !lineReveal) return;
+    var lines = session.revealLines || [];
+    var n = lines.length;
+    var shown = Math.max(0, Math.min(session.revealedCount || 0, n));
+    session.revealedCount = shown;
+    lineReveal.hidden = n === 0;
+    lineRevealList.innerHTML = "";
+    lines.forEach(function (line, i) {
+      var li = document.createElement("li");
+      if (i < shown) {
+        li.className = "revealed";
+        li.textContent = line;
+      } else {
+        li.className = "hidden-line";
+        li.setAttribute("aria-hidden", "true");
+        li.setAttribute("title", "Hidden — reveal next line");
+        li.innerHTML = "&nbsp;";
+      }
+      lineRevealList.appendChild(li);
+    });
+    if (n === 0) {
+      lineRevealMeta.textContent = "No lines";
+    } else if (shown >= n) {
+      lineRevealMeta.textContent = "All " + n + " line" + (n === 1 ? "" : "s") + " revealed";
+    } else {
+      lineRevealMeta.textContent = "Line " + shown + " of " + n + " revealed";
+    }
+    revealNextBtn.disabled = shown >= n || n === 0;
+    revealAllBtn.disabled = shown >= n || n === 0;
+    hideAllBtn.disabled = shown === 0 || n === 0;
+  }
+
+  function revealNextLine() {
+    if (!session || !completePanel.hidden) return;
+    var n = (session.revealLines || []).length;
+    if (!n) return;
+    if (session.revealedCount >= n) return;
+    session.revealedCount++;
+    renderLineReveal();
+  }
+
+  function revealAllLines() {
+    if (!session || !completePanel.hidden) return;
+    var n = (session.revealLines || []).length;
+    if (!n) return;
+    session.revealedCount = n;
+    renderLineReveal();
+  }
+
+  function hideAllLines() {
+    if (!session || !completePanel.hidden) return;
+    session.revealedCount = 0;
+    renderLineReveal();
+  }
+
   // --- Study session ---
   function startStudy() {
     refreshPreview();
@@ -822,13 +1011,17 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
       flipped: false,
       done: 0,
       misses: 0,
-      passageTitle: title
+      passageTitle: title,
+      sourceText: editor.value,
+      revealLines: [],
+      revealedCount: 0
     };
     studyTitle.textContent = title;
     setupView.hidden = true;
     studyView.hidden = false;
     cardPanel.hidden = false;
     completePanel.hidden = true;
+    initLineReveal(session.sourceText);
     showCurrentCard();
     flashcard.focus();
   }
@@ -1060,11 +1253,18 @@ footer { color: var(--muted); font-size: .82rem; margin-top: .4rem; }
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
       if (session && completePanel.hidden) goNext();
+    } else if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      if (session && completePanel.hidden) revealNextLine();
     } else if (session && session.flipped && completePanel.hidden) {
       if (e.key === "1" || e.key === "m" || e.key === "M") { e.preventDefault(); grade(false); }
       if (e.key === "2" || e.key === "g" || e.key === "G") { e.preventDefault(); grade(true); }
     }
   });
+
+  revealNextBtn.addEventListener("click", revealNextLine);
+  revealAllBtn.addEventListener("click", revealAllLines);
+  hideAllBtn.addEventListener("click", hideAllLines);
 
   // Init — merge built-in T-45C EPs without wiping other saves
   ensureEpPackMerged();
